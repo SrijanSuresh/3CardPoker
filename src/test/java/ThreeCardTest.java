@@ -2,14 +2,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
 import java.util.Arrays;
 import java.util.List;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
-class MyTest {
+class ThreeCardTest {
 	private Player player;
 	private Dealer dealer;
 	private Deck deck;
@@ -217,5 +214,184 @@ class MyTest {
 		assertEquals(470, player2.getBalance(), "Player 2 balance should be 470 after winning Pair Plus with Straight Flush.");
 	}
 
+	@Test
+	void testDealerQualifiesPlayerLosesWithLowerHand() {
+		player.placeAnteBet(10);
+
+		// Predefine hands
+		player.receiveCards(createHand("4", "Hearts", "6", "Diamonds", "7", "Clubs")); // Player's hand - Low cards
+		dealer.receiveCards(createHand("Q", "Spades", "J", "Clubs", "10", "Diamonds")); // Dealer qualifies with Queen high
+
+		game.playRound(Arrays.asList(player), dealer, deck);
+
+		// Expected balance is 80 after losing both ante and play bets
+		assertEquals(80, player.getBalance(), "Balance should be 80 after player loses both ante and play bets with a lower hand.");
+	}
+
+	@Test
+	void testDealerDoesNotQualify_PairPlusOnly() {
+		player.placeAnteBet(10);
+		player.placePairPlusBet(10);
+
+		// Predefine hands
+		player.receiveCards(createHand("5", "Hearts", "5", "Diamonds", "5", "Clubs")); // Player's hand - Three of a Kind
+		dealer.receiveCards(createHand("2", "Spades", "3", "Clubs", "6", "Diamonds")); // Dealer does not qualify
+
+		game.playRound(Arrays.asList(player), dealer, deck);
+
+		// Expected balance is 380 after ante returned and winning Pair Plus with Three of a Kind (30:1 payout)
+		assertEquals(380, player.getBalance(), "Balance should be 380 after dealer does not qualify and player wins Pair Plus.");
+	}
+
+	@Test
+	void testPairPlusBetLoss_NoQualifyingHand() {
+		player.placeAnteBet(10);
+		player.placePairPlusBet(10);
+
+		// Predefine hands
+		player.receiveCards(createHand("2", "Hearts", "5", "Diamonds", "8", "Clubs")); // Player's hand - No pair or higher
+		dealer.receiveCards(createHand("A", "Spades", "K", "Clubs", "Q", "Diamonds")); // Dealer qualifies
+
+		game.playRound(Arrays.asList(player), dealer, deck);
+
+		// Expected balance is 70 after losing Pair Plus bet and ante bet if player loses
+		assertEquals(70, player.getBalance(), "Balance should be 70 after player loses Pair Plus bet with no qualifying hand.");
+	}
+	@Test
+	void testDealerAndPlayerBothHaveStraightFlush_PlayerWinsTie() {
+		player.placeAnteBet(10);
+		player.placePairPlusBet(10);
+
+		// Predefine hands
+		player.receiveCards(createHand("10", "Hearts", "9", "Hearts", "8", "Hearts")); // Player's hand - Straight Flush
+		dealer.receiveCards(createHand("9", "Spades", "8", "Spades", "7", "Spades")); // Dealer's hand - Lower Straight Flush
+
+		game.playRound(Arrays.asList(player), dealer, deck);
+
+		// Expected balance is 480 after winning Pair Plus and play bets (40:1 payout for Straight Flush)
+		assertEquals(480, player.getBalance(), "Balance should be 480 after player wins with a higher Straight Flush.");
+	}
+	@Test
+	void testPlayerFoldsWithPairPlusBet() {
+		Player foldingPlayer = new Player("FoldingPlayer", 100) {
+			@Override
+			public boolean willPlay() {
+				return false; // Player decides to fold
+			}
+		};
+
+		foldingPlayer.placeAnteBet(10);
+		foldingPlayer.placePairPlusBet(10);
+
+		foldingPlayer.receiveCards(createHand("3", "Diamonds", "6", "Clubs", "8", "Spades")); // Player's hand
+		dealer.receiveCards(createHand("Q", "Spades", "J", "Clubs", "9", "Diamonds")); // Dealer qualifies
+
+		game.playRound(Arrays.asList(foldingPlayer), dealer, deck);
+
+		// Expected balance is 80 after forfeiting ante and Pair Plus bets due to folding
+		assertEquals(80, foldingPlayer.getBalance(), "Balance should be 80 after player folds and forfeits bets.");
+	}
+
+	@Test
+	void testBothPlayersWinAgainstDealer() {
+		Player player1 = new Player("Player 1", 100);
+		Player player2 = new Player("Player 2", 100);
+
+		player1.placeAnteBet(10);
+		player1.placePairPlusBet(10);
+		player2.placeAnteBet(10);
+		player2.placePairPlusBet(10);
+
+		player1.receiveCards(createHand("K", "Hearts", "Q", "Diamonds", "J", "Clubs")); // High hand for player 1
+		player2.receiveCards(createHand("10", "Spades", "10", "Hearts", "10", "Diamonds")); // Three of a kind for player 2
+		dealer.receiveCards(createHand("Q", "Spades", "J", "Clubs", "9", "Diamonds")); // Dealer qualifies
+
+		game.playRound(Arrays.asList(player1, player2), dealer, deck);
+
+		// Assertions for final balances
+		assertEquals(170, player1.getBalance(), "Player 1 balance should be 170 after winning against dealer.");
+		assertEquals(370, player2.getBalance(), "Player 2 balance should be 370 after winning against dealer with Three of a Kind and Pair Plus.");
+	}
+
+	@Test
+	void testBothPlayersWinWithPairPlusDealerDoesNotQualify() {
+		// Set up players and dealer
+		Player player1 = new Player("Player 1", 100);
+		Player player2 = new Player("Player 2", 100);
+		Dealer dealer = new Dealer();
+
+		// Place bets
+		player1.placeAnteBet(10);
+		player1.placePairPlusBet(10);
+		player2.placeAnteBet(10);
+		player2.placePairPlusBet(10);
+
+		// Predefine hands
+		player1.receiveCards(createHand("3", "Hearts", "7", "Hearts", "10", "Hearts")); // Player 1's hand - Flush
+		player2.receiveCards(createHand("9", "Spades", "10", "Spades", "J", "Spades")); // Player 2's hand - Straight Flush
+		dealer.receiveCards(createHand("2", "Diamonds", "4", "Clubs", "5", "Diamonds")); // Dealer's hand - Does not qualify
+
+		// Play the round
+		game.playRound(Arrays.asList(player1, player2), dealer, deck);
+
+		// Assert final balances
+		assertEquals(110, player1.getBalance(), "Player 1 balance should be 110 after winning Pair Plus with a Flush (3:1).");
+		assertEquals(480, player2.getBalance(), "Player 2 balance should be 480 after winning Pair Plus with a Straight Flush (40:1).");
+	}
+	@Test
+	void testDealerQualifiesPlayer1WinsWithThreeOfAKind_Player2LosesWithLowHand() {
+		// Set up players and dealer
+		Player player1 = new Player("Player 1", 100);
+		Player player2 = new Player("Player 2", 100);
+		Dealer dealer = new Dealer();
+
+		// Place bets
+		player1.placeAnteBet(10);
+		player1.placePairPlusBet(10);
+		player2.placeAnteBet(10);
+		player2.placePairPlusBet(10);
+
+		// Predefine hands
+		player1.receiveCards(createHand("7", "Clubs", "7", "Diamonds", "7", "Hearts")); // Player 1's hand - Three of a Kind
+		player2.receiveCards(createHand("3", "Spades", "5", "Diamonds", "6", "Clubs")); // Player 2's hand - Low cards
+		dealer.receiveCards(createHand("Q", "Spades", "J", "Hearts", "10", "Diamonds")); // Dealer's hand - Qualifies with Queen high
+
+		// Play the round
+		game.playRound(Arrays.asList(player1, player2), dealer, deck);
+
+		// Assert final balances
+		assertEquals(370, player1.getBalance(), "Player 1 balance should be 370 after winning with Three of a Kind and Pair Plus (30:1).");
+		assertEquals(70, player2.getBalance(), "Player 2 balance should be 70 after losing both play and Pair Plus bets.");
+	}
+	@Test
+	void testPlayer1FoldsAfterPairPlus_Player2WinsWithStraight() {
+		// Set up players and dealer
+		Player player1 = new Player("Player 1", 100) {
+			@Override
+			public boolean willPlay() {
+				return false; // Player 1 decides to fold
+			}
+		};
+		Player player2 = new Player("Player 2", 100);
+		Dealer dealer = new Dealer();
+
+		// Place bets
+		player1.placeAnteBet(10);
+		player1.placePairPlusBet(10);
+		player2.placeAnteBet(10);
+		player2.placePairPlusBet(10);
+
+		// Predefine hands
+		player1.receiveCards(createHand("4", "Hearts", "5", "Clubs", "8", "Diamonds")); // Player 1's hand
+		player2.receiveCards(createHand("6", "Hearts", "7", "Diamonds", "8", "Clubs")); // Player 2's hand - Straight
+		dealer.receiveCards(createHand("Q", "Spades", "9", "Clubs", "10", "Diamonds")); // Dealer's hand - Qualifies with Queen high
+
+		// Play the round
+		game.playRound(Arrays.asList(player1, player2), dealer, deck);
+
+		// Assert final balances
+		assertEquals(80, player1.getBalance(), "Player 1 balance should be 80 after folding and losing both ante and Pair Plus bets.");
+		assertEquals(130, player2.getBalance(), "Player 2 balance should be 130 after winning with a Straight and Pair Plus (6:1 payout).");
+	}
 
 }
